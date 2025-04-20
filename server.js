@@ -1,3 +1,4 @@
+require('dotenv').config(); // For local development only
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -5,13 +6,13 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Store active tunnels: path -> { ws, isAuthorized }
+// Store active tunnels: path -> { ws, isAuthorized, apiKey }
 const tunnels = new Map();
 
-// Hardcoded API keys (replace with environment variable in production)
-const validApiKeys = process.env.API_KEYS ? process.env.API_KEYS.split(',');
+// Load API keys from environment variable (Render secret or env)
+const validApiKeys = process.env.API_KEYS ? process.env.API_KEYS.split(',') : [];
 
-// Generate a random path (for unauthorized or unspecified paths)
+// Generate a random path for unauthorized or unspecified paths
 function generatePath() {
     return Math.random().toString(36).substring(2, 10); // e.g., 'abcd1234'
 }
@@ -59,7 +60,7 @@ wss.on('connection', (ws) => {
 
                 // Register the new tunnel
                 tunnels.set(path, { ws, isAuthorized, apiKey });
-                ws.send(JSON.stringify({ path, url: `https://lazy-wolves-raise.loca.lt/${path}` }));
+                ws.send(JSON.stringify({ path, url: `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/${path}` }));
                 console.log(`New tunnel: /${path} (Authorized: ${isAuthorized})`);
             } else if (msg.response) {
                 // Handle HTTP response from client
@@ -69,7 +70,7 @@ wss.on('connection', (ws) => {
                 }
             }
         } catch (err) {
-            console.error('Invalid message:', err);
+            console.error('Invalid message:', err.message);
             ws.terminate();
         }
     });
@@ -80,6 +81,10 @@ wss.on('connection', (ws) => {
             tunnels.delete(path);
             console.log(`Tunnel closed: /${path}`);
         }
+    });
+
+    ws.on('error', (err) => {
+        console.error('WebSocket error:', err.message);
     });
 });
 
@@ -124,8 +129,8 @@ app.get('/:path', (req, res) => {
     }, 100);
 });
 
-// Health check for hosting platforms
-app.get('/', (req, res) => res.send('Tunneling service running'));
+// Health check for Render
+app.get('/', (req, res) => res.send('TennelMe tunneling service running. See more: https://github.com/NitinBot001/tennelme'));
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
