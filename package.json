@@ -1,0 +1,24 @@
+{
+  "name": "tunnelme",
+  "version": "1.0.0",
+  "description": "Tunnel any path with your own tunnling service.",
+  "main": "server.js",
+  "scripts": {"start": 
+    "node server.js"
+  },
+  "keywords": [
+    "tunneling",
+    "tunnelme"
+  ],
+  "author": "NitinBot001",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NitinBot001/tennelme.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NitinBot001/tennelme/issues"
+  },
+  "homepage": "https://github.com/NitinBot001/tennelme#readme"
+}
+
