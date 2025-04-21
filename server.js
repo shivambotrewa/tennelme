@@ -37,22 +37,22 @@ wss.on('connection', (ws) => {
                 let path = requestedPath || generatePath();
                 let isAuthorized = isValidApiKey(apiKey);
 
+                // Check if path is already in use
                 const existingTunnel = tunnels.get(path);
                 if (existingTunnel) {
-                    if (isAuthorized && (!existingTunnel.isAuthorized || apiKey !== existingTunnel.apiKey)) {
-                        console.log(`Path /${path} taken over by new authorized client`);
+                    if (isAuthorized) {
+                        // Authenticated client takes over: disconnect existing client
+                        console.log(`Path /${path} taken over by new authenticated client`);
                         existingTunnel.ws.terminate();
                         tunnels.delete(path);
-                    } else if (!isAuthorized) {
+                    } else {
+                        // Unauthorized client: assign random path
                         path = generatePath();
                         console.log(`Unauthorized client assigned random path: /${path}`);
-                    } else {
-                        ws.send(JSON.stringify({ error: `Path /${path} is already in use` }));
-                        ws.terminate();
-                        return;
                     }
                 }
 
+                // Register the new tunnel
                 tunnels.set(path, { ws, isAuthorized, apiKey });
                 ws.send(JSON.stringify({ path, url: `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/${path}` }));
                 console.log(`New tunnel: /${path} (Authorized: ${isAuthorized})`);
