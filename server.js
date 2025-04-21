@@ -9,10 +9,10 @@ const wss = new WebSocket.Server({ server });
 // Store active tunnels: path -> { ws, isAuthorized, apiKey }
 const tunnels = new Map();
 
-// Load API keys from environment variable (Render secret or env)
+// Load API keys from environment variable
 const validApiKeys = process.env.API_KEYS ? process.env.API_KEYS.split(',') : [];
 
-// Generate a random path for unauthorized or unspecified paths
+// Generate a random path
 function generatePath() {
     return Math.random().toString(36).substring(2, 10); // e.g., 'abcd1234'
 }
@@ -33,44 +33,37 @@ wss.on('connection', (ws) => {
         try {
             const msg = JSON.parse(data);
             if (msg.auth) {
-                // Handle authentication and path request
                 const { apiKey, requestedPath } = msg.auth;
                 let path = requestedPath || generatePath();
                 let isAuthorized = isValidApiKey(apiKey);
 
-                // Check if path is already in use
                 const existingTunnel = tunnels.get(path);
                 if (existingTunnel) {
                     if (isAuthorized && (!existingTunnel.isAuthorized || apiKey !== existingTunnel.apiKey)) {
-                        // Authorized client takes over: disconnect existing client
                         console.log(`Path /${path} taken over by new authorized client`);
                         existingTunnel.ws.terminate();
                         tunnels.delete(path);
                     } else if (!isAuthorized) {
-                        // Unauthorized client: assign random path
                         path = generatePath();
                         console.log(`Unauthorized client assigned random path: /${path}`);
                     } else {
-                        // Authorized client with same API key or unauthorized conflict: reject
                         ws.send(JSON.stringify({ error: `Path /${path} is already in use` }));
                         ws.terminate();
                         return;
                     }
                 }
 
-                // Register the new tunnel
                 tunnels.set(path, { ws, isAuthorized, apiKey });
                 ws.send(JSON.stringify({ path, url: `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/${path}` }));
                 console.log(`New tunnel: /${path} (Authorized: ${isAuthorized})`);
             } else if (msg.response) {
-                // Handle HTTP response from client
                 const path = [...tunnels.entries()].find(([_, t]) => t.ws === ws)?.[0];
                 if (path) {
                     tunnels.get(path).httpResponse = msg.response;
                 }
             }
         } catch (err) {
-            console.error('Invalid message:', err.message);
+            console.error(`Invalid message: ${err.message}`);
             ws.terminate();
         }
     });
@@ -84,7 +77,7 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('error', (err) => {
-        console.error('WebSocket error:', err.message);
+        console.error(`WebSocket error: ${err.message}`);
     });
 });
 
@@ -98,7 +91,17 @@ const pingInterval = setInterval(() => {
         ws.isAlive = false;
         ws.ping();
     });
-}, 30000); // Ping every 30 seconds
+}, 10000); // Ping every 10 seconds
+
+// Clean up stale tunnels hourly to save memory
+setInterval(() => {
+    tunnels.forEach((tunnel, path) => {
+        if (!tunnel.ws.isAlive) {
+            console.log(`Cleaning up stale tunnel: /${path}`);
+            tunnels.delete(path);
+        }
+    });
+}, 3600000); // Every hour
 
 // HTTP route to handle incoming requests
 app.get('/:path', (req, res) => {
@@ -130,7 +133,7 @@ app.get('/:path', (req, res) => {
 });
 
 // Health check for Render
-app.get('/', (req, res) => res.send('TennelMe tunneling service running. See more: https://github.com/NitinBot001/tennelme'));
+app.get('/', (req, res) => res.send('TennelMe tunneling service running'));
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
